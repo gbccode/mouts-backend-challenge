@@ -1,0 +1,10 @@
+{
+    "/api/**": {
+        "changeOrigin": true,
+        "target": "http://localhost:5119"
+    },
+    "/health/**": {
+        "changeOrigin": true,
+        "target": "http://localhost:5119"
+    }
+}
