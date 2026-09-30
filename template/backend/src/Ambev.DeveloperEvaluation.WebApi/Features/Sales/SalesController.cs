@@ -1,9 +1,9 @@
-﻿using AutoMapper;
+﻿using Ambev.DeveloperEvaluation.Application.Sales.Common;
+using Ambev.DeveloperEvaluation.Domain.Repositories;
+using Ambev.DeveloperEvaluation.WebApi.Common;
+using AutoMapper;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Ambev.DeveloperEvaluation.WebApi.Common;
-using Ambev.DeveloperEvaluation.Application.Sales.Common;
-using Ambev.DeveloperEvaluation.Domain.Repositories;
 
 namespace Ambev.DeveloperEvaluation.WebApi.Features.Sales;
 
@@ -35,11 +35,77 @@ public class SalesController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var sale = await _saleRepository.GetByIdAsync(id, cancellationToken);
-        if (sale == null)
+        try
+        {
+            var result = await _mediator.Send(new Application.Sales.GetSale.GetSaleQuery(id), cancellationToken);
+            return Ok(new ApiResponseWithData<SaleResult> { Success = true, Data = result });
+        }
+        catch (KeyNotFoundException)
+        {
             return NotFound(new ApiResponse { Success = false, Message = "Sale not found." });
+        }
+    }
 
-        var result = _mapper.Map<SaleResult>(sale);
-        return Ok(new ApiResponseWithData<SaleResult> { Success = true, Data = result });
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateSale.UpdateSaleRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var command = _mapper.Map<Application.Sales.UpdateSale.UpdateSaleCommand>(request);
+            command.Id = id;
+            var result = await _mediator.Send(command, cancellationToken);
+            return Ok(new ApiResponseWithData<SaleResult> { Success = true, Data = result });
+        }
+        catch (FluentValidation.ValidationException ex)
+        {
+            return BadRequest(new ApiResponse { Success = false, Errors = ex.Errors.Select(e => (DeveloperEvaluation.Common.Validation.ValidationErrorDetail)e) });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new ApiResponse { Success = false, Message = "Sale not found." });
+        }
+    }
+
+    [HttpPatch("{id:guid}/cancel")]
+    public async Task<IActionResult> CancelSale(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _mediator.Send(new Application.Sales.CancelSale.CancelSaleCommand { SaleId = id }, cancellationToken);
+            return Ok(new ApiResponseWithData<SaleResult> { Success = true, Data = result });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new ApiResponse { Success = false, Message = "Sale not found." });
+        }
+    }
+
+    [HttpPatch("{saleId:guid}/items/{itemId:guid}/cancel")]
+    public async Task<IActionResult> CancelItem(Guid saleId, Guid itemId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _mediator.Send(new Application.Sales.CancelSaleItem.CancelSaleItemCommand { SaleId = saleId, ItemId = itemId }, cancellationToken);
+            return Ok(new ApiResponseWithData<SaleResult> { Success = true, Data = result });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            var msg = ex.Message.Contains("Item") ? "Item not found." : "Sale not found.";
+            return NotFound(new ApiResponse { Success = false, Message = msg });
+        }
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _mediator.Send(new Application.Sales.DeleteSale.DeleteSaleCommand { Id = id }, cancellationToken);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new ApiResponse { Success = false, Message = "Sale not found." });
+        }
     }
 }
