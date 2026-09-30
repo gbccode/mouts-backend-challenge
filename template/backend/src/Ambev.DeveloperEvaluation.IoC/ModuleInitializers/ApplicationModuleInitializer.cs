@@ -2,6 +2,7 @@
 using Ambev.DeveloperEvaluation.Application.Sales.CancelSaleItem;
 using Ambev.DeveloperEvaluation.Application.Sales.CreateSale;
 using Ambev.DeveloperEvaluation.Application.Sales.UpdateSale;
+using Ambev.DeveloperEvaluation.Application.Sales.ListSales;
 using Ambev.DeveloperEvaluation.Common.Security;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
@@ -20,5 +21,6 @@ public class ApplicationModuleInitializer : IModuleInitializer
         builder.Services.AddScoped<IValidator<UpdateSaleCommand>, UpdateSaleValidator>();
         builder.Services.AddScoped<IValidator<CancelSaleCommand>, CancelSaleValidator>();
         builder.Services.AddScoped<IValidator<CancelSaleItemCommand>, CancelSaleItemValidator>();
+        builder.Services.AddScoped<IValidator<ListSalesQuery>, ListSalesValidator>();
     }
 }

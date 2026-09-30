@@ -26,7 +26,8 @@ public interface ISaleRepository
     /// <summary>
     /// Returns a paginated list of sales, optionally filtered by search term (sale number, customer name, or branch name).
     /// </summary>
-    Task<SalesPageResult> GetPageAsync(int page, int pageSize, string? searchTerm = null, CancellationToken cancellationToken = default);
+    Task<SalesPageResult> GetPageAsync(int page, int pageSize, string? searchTerm = null,
+        string? order = null, bool? isCancelled = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Persist a sale and its items (cascade). If the sale already exists, it will be updated. If not, it will be added.

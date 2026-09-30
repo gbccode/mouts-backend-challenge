@@ -32,6 +32,28 @@ public class SalesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, response);
     }
 
+    [HttpGet]
+    [ProducesResponseType(typeof(PaginatedResponse<SaleResult>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> List(
+        [FromQuery(Name = "_page")] int page = 1,
+        [FromQuery(Name = "_size")] int size = 10,
+        [FromQuery(Name = "_order")] string? order = null,
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] bool? isCancelled = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _mediator.Send(new Application.Sales.ListSales.ListSalesQuery(
+            page, size, searchTerm, order, isCancelled), cancellationToken);
+        return Ok(new PaginatedResponse<SaleResult>
+        {
+            Success = true,
+            Data = result.Data,
+            CurrentPage = result.CurrentPage,
+            TotalPages = result.TotalPages,
+            TotalCount = result.TotalCount
+        });
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {

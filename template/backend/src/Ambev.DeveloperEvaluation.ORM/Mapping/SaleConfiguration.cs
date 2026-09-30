@@ -24,12 +24,13 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
         builder.Property(s => s.IsCancelled).IsRequired();
 
         // Configure relationship and backing field access
-        builder.HasMany<SaleItem>("_items")
+        builder.HasMany(s => s.Items)
                .WithOne()
-               .HasForeignKey(nameof(SaleItem.SaleId))
+               .HasForeignKey(i => i.SaleId)
                .OnDelete(DeleteBehavior.Cascade);
 
         builder.Navigation(s => s.Items)
+               .HasField("_items")
                .UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
