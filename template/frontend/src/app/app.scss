@@ -1,0 +1,7 @@
+:host { display: block; min-height: 100vh; }
+.app-header { background: #112b48; color: #fff; }
+.header-content { max-width: 1100px; margin: auto; padding: 1.2rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+.brand { color: #fff; text-decoration: none; font-size: 1.05rem; font-weight: 700; }
+nav a { color: #d6e8ff; text-decoration: none; font-size: .9rem; }
+main { max-width: 1100px; margin: auto; padding: 2.3rem 1.5rem; }
+@media (max-width: 600px) { main { padding: 1.5rem 1rem; } .header-content { padding: 1.1rem 1rem; } }

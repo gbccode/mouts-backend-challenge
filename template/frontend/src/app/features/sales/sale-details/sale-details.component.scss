@@ -1,0 +1,11 @@
+.summary-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+h2 { overflow-wrap: anywhere; }
+.sale-summary { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 1.5rem; margin: 1.5rem 0 0; }
+dt { color: #536175; font-size: .85rem; }
+dd { margin: .5rem 0 0; font-weight: 600; }
+.total dd { font-size: 2rem; color: #164c91; }
+.status { display: inline-block; background: #e4f4ed; color: #206247; border-radius: 1rem; padding: .2rem .65rem; font-size: .8rem; }
+.status.cancelled { background: #fff0f0; color: #9c2530; }
+.cancelled-row { color: #657287; background: #f7f8fa; }
+@media (max-width: 760px) { .sale-summary { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 400px) { .summary-heading { flex-direction: column; } .sale-summary { grid-template-columns: 1fr; } }

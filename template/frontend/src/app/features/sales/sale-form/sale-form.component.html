@@ -1,0 +1,112 @@
+<header class="page-heading">
+  <div>
+    <p class="eyebrow">Sales / {{ saleId ? 'Edit' : 'New' }}</p>
+    <h1>{{ saleId ? 'Edit sale' : 'Create a sale' }}</h1>
+    <p>Choose a customer and branch, then add the products sold.</p>
+  </div>
+  @if (saleId) { <a class="button secondary" [routerLink]="['/sales', saleId]">View details</a> }
+</header>
+
+@if (loading) { <p class="notice" role="status">Loading sale…</p> }
+@if (error) { <p class="notice error" role="alert">{{ error }}</p> }
+@if (isCancelled) { <p class="notice">This sale is cancelled and cannot be edited.</p> }
+
+<form [formGroup]="form" (ngSubmit)="submit()" novalidate [attr.aria-busy]="saving || loading">
+  <fieldset [disabled]="loading || saving || loadFailed || isCancelled">
+    <section class="panel" aria-labelledby="sale-information">
+      <h2 id="sale-information">Sale information</h2>
+      <div class="header-fields">
+        <div class="field">
+          <label for="sale-date">Sale date and time</label>
+          <input id="sale-date" type="datetime-local" step="0.001" formControlName="saleDate"
+            aria-describedby="date-help date-error" [attr.aria-invalid]="invalid(form.controls.saleDate)" />
+          <small id="date-help">Your local time. Saved in UTC.</small>
+          @if (invalid(form.controls.saleDate)) { <small class="field-error" id="date-error">Enter a valid local date and time.</small> }
+        </div>
+        <div class="field">
+          <label for="customer">Customer</label>
+          <select id="customer" #customer formControlName="customerId" (change)="selectCustomer(customer.value)"
+            [attr.aria-invalid]="invalid(form.controls.customerId)" aria-describedby="customer-error">
+            <option value="">Select a customer</option>
+            @for (item of customers; track item.id) { <option [value]="item.id">{{ item.name }}</option> }
+          </select>
+          @if (invalid(form.controls.customerId) || invalid(form.controls.customerName)) { <small class="field-error" id="customer-error">Select a customer.</small> }
+        </div>
+        <div class="field">
+          <label for="branch">Branch</label>
+          <select id="branch" #branch formControlName="branchId" (change)="selectBranch(branch.value)"
+            [attr.aria-invalid]="invalid(form.controls.branchId)" aria-describedby="branch-error">
+            <option value="">Select a branch</option>
+            @for (item of branches; track item.id) { <option [value]="item.id">{{ item.name }}</option> }
+          </select>
+          @if (invalid(form.controls.branchId) || invalid(form.controls.branchName)) { <small class="field-error" id="branch-error">Select a branch.</small> }
+        </div>
+      </div>
+      <p class="muted fixture-note">Demo customer, branch and product references. Your sales are saved to the connected backend.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="sale-items">
+      <div class="section-heading">
+        <div><h2 id="sale-items">Active items</h2><p class="muted">1–20 units per product. Each product can appear once.</p></div>
+        <button class="button secondary" type="button" (click)="addItem()">+ Add item</button>
+      </div>
+      <div formArrayName="items">
+        @for (row of items.controls; track row.controls.id.value ?? row; let i = $index) {
+          <div class="item-row" [formGroupName]="i">
+            <div class="field product-field">
+              <label [for]="'product-' + i">Product {{ i + 1 }}</label>
+              <select [id]="'product-' + i" #product formControlName="productId" (change)="selectProduct(i, product.value)"
+                [attr.aria-invalid]="invalid(row.controls.productId)" [attr.aria-describedby]="'product-help-' + i">
+                <option value="">Select a product</option>
+                @for (item of products; track item.id) { <option [value]="item.id">{{ item.name }}</option> }
+              </select>
+              <small [id]="'product-help-' + i">
+                @if (row.controls.id.value) { Remove this row and add another to replace its product. }
+                @else if (invalid(row.controls.productId) || invalid(row.controls.productName)) { <span class="field-error">Select a product.</span> }
+              </small>
+            </div>
+            <div class="field">
+              <label [for]="'quantity-' + i">Quantity</label>
+              <input [id]="'quantity-' + i" type="number" min="1" max="20" step="1" formControlName="quantity"
+                [attr.aria-invalid]="invalid(row.controls.quantity)" [attr.aria-describedby]="'quantity-error-' + i" />
+              @if (invalid(row.controls.quantity)) { <small class="field-error" [id]="'quantity-error-' + i">Use a whole number from 1 to 20.</small> }
+            </div>
+            <div class="field">
+              <label [for]="'price-' + i">Unit price</label>
+              <input [id]="'price-' + i" type="number" min="0.01" step="0.01" formControlName="unitPrice"
+                [attr.aria-invalid]="invalid(row.controls.unitPrice)" [attr.aria-describedby]="'price-error-' + i" />
+              @if (invalid(row.controls.unitPrice)) { <small class="field-error" [id]="'price-error-' + i">Use a positive price with up to two decimals.</small> }
+            </div>
+            <button class="remove-button" type="button" (click)="removeItem(i)" [attr.aria-label]="'Remove item ' + (i + 1)">Remove</button>
+          </div>
+        } @empty { <p class="muted">No active items. Add an item to save this sale.</p> }
+      </div>
+      @if (invalid(items) && items.hasError('noActiveItems')) { <p class="field-error" role="alert">At least one active item is required.</p> }
+      @if (invalid(items) && items.hasError('duplicateProducts')) { <p class="field-error" role="alert">Each active product must be unique. Combine its quantity in one row.</p> }
+      @if (saleId) { <p class="muted">Removing an existing row cancels that item when you save.</p> }
+    </section>
+  </fieldset>
+
+  @if (cancelledItems.length) {
+    <section class="panel" aria-labelledby="cancelled-items">
+      <h2 id="cancelled-items">Cancelled items</h2>
+      <p class="muted">Read-only history. These amounts are excluded from the sale total.</p>
+      <div class="table-scroll"><table>
+        <thead><tr><th>Product</th><th>Quantity</th><th>Unit price</th><th>Discount</th><th>Item total</th></tr></thead>
+        <tbody>@for (item of cancelledItems; track item.id) {
+          <tr><td>{{ item.productName }}</td><td>{{ item.quantity }}</td><td>{{ item.unitPrice | number:'1.2-2' }}</td><td>{{ item.discountRate | percent }} · {{ item.discountAmount | number:'1.2-2' }}</td><td>{{ item.totalAmount | number:'1.2-2' }}</td></tr>
+        }</tbody>
+      </table></div>
+    </section>
+  }
+
+  <footer class="form-footer">
+    <div>
+      @if (savedSale) { <span class="muted">Last saved total</span><strong class="saved-total">{{ savedSale.totalAmount | number:'1.2-2' }}</strong> }
+      <p class="muted">Discounts and totals are calculated when you save.</p>
+    </div>
+    <button class="button primary" type="submit" [disabled]="saving || loading || loadFailed || isCancelled">
+      {{ saving ? 'Saving…' : 'Save sale' }}
+    </button>
+  </footer>
+</form>

@@ -55,19 +55,91 @@ that remains the backend's responsibility.
 The interceptor adds `Authorization: Bearer <token>` only to relative `/api/` requests,
 excluding login. It does not attach the token to external URLs or asset requests.
 
-`app.routes.ts` is still empty. When login and sales components are added:
+The create, edit and details routes are available. A login page is still pending;
+these routes are currently unguarded. When adding login:
 
 1. Add an unguarded `/login` route.
 2. Import `authGuard` from `./core/guards/auth.guard` and add
    `canActivate: [authGuard]` to the sales routes.
-3. After login, navigate to an internal `returnUrl` or `/sales` by default. The guard
+3. After login, navigate to an internal `returnUrl` or `/sales/new` by default. The guard
    includes the attempted URL in the login redirect's `returnUrl` query parameter.
 4. Handle HTTP errors in the UI. If a token is rejected with 401, log out and return
    to login. There is no refresh-token endpoint in the current backend.
 
-The guard is ready for these routes but cannot protect screens that do not exist yet.
-Server authorization is separate: `SalesController` currently has no `[Authorize]`
-attribute.
+Add the guard after `/login` exists so redirects have a working destination.
+Server authorization is separate: `SalesController` currently has no `[Authorize]` attribute.
+
+## Create and edit sales
+
+| Route | Screen |
+| --- | --- |
+| `/` or `/sales/new` | New sale with an empty header and one item |
+| `/sales/:id/edit` | The same standalone `SaleFormComponent`, populated from the API |
+| `/sales/:id` | Saved sale details, fetched from the API on navigation and refresh |
+
+The Reactive Form contains the sale date, customer ID/name, branch ID/name and
+a typed `FormArray` of item groups. Selects populate both the external ID and its
+name. Validation requires at least one active item, distinct product IDs,
+integer quantities from 1 through 20, and positive prices with at most two decimal
+places. Invalid submission marks every control as touched. Save and the form are
+disabled during requests; HTTP errors preserve your input and re-enable Save.
+
+Dates use the browser's local timezone in `datetime-local` inputs. Saving converts
+them to UTC with `new Date(value).toISOString()`. Editing reconstructs local calendar
+fields from the API timestamp, preserving seconds and milliseconds. It never labels
+a sliced UTC timestamp as local time.
+
+Only active items are editable. Existing item IDs are sent on updates; new items use
+`id: null`. Omitted existing rows are cancelled by the backend on save. Cancelled
+items appear in a separate read-only section and are never sent as active inputs.
+An existing row's product is fixed because the backend's `SaleItem.Update` does not
+change `ProductId`; remove the row and add a new one to replace the product.
+Cancelled sales cannot be edited. Backend DTOs and domain rules continue to enforce
+integer quantities and duplicate-product restrictions independently of the UI.
+
+The form sends only the agreed input fields. Sale numbers, discounts and totals
+come from the backend. There is no client-side pricing estimate. After saving,
+the details route reloads the sale and shows its saved discount rates, amounts
+and total. Cancelled item amounts are historical and excluded from the sale total.
+
+### Demo external references
+
+`src/app/features/sales/sales.fixtures.ts` defines typed, stable demo references:
+
+- Customers: Acme Market and Central Grocery (`10000000-...` IDs).
+- Branches: Blumenau and Joinville (`20000000-...` IDs).
+- Products: Beverage case (100), Sparkling water case (25), Juice case (75)
+  (`30000000-...` IDs). These prices are editable defaults.
+
+These lists stand in for external customer/product/branch services. They do not
+mock, seed or store sales, and no separate customer/product CRUD is included.
+Every save uses the real API. When editing an existing sale, references absent
+from these lists retain their saved IDs and names.
+
+### Persistence checkpoint with Docker on Windows
+
+From `C:\dev\mouts-backend-challenge\template\backend` in PowerShell:
+
+```powershell
+docker compose -f .\compose.local.yml up -d --build frontend
+```
+
+1. Open `http://localhost:4200/sales/new`.
+2. Enter a date/time; choose **Acme Market**, **Blumenau**, and **Beverage case**.
+3. Set **Quantity = 10** and **Unit price = 100**, then click **Save sale**.
+4. On `/sales/<id>`, confirm **Saved total = 800.00**, discount **20% / 200.00**.
+5. Refresh that URL. The screen issues `GET /api/sales/<id>` and must still show
+   **800.00**. This is the real database persistence checkpoint.
+6. Click **Edit sale**, change quantity to **4**, save, and refresh. The expected
+   saved total is **360.00**, with a **10% / 40.00** discount.
+
+For Angular running outside Docker, `npm start` uses the existing proxy target
+`http://localhost:5119`. If the API runs only in Docker at port 8080, adjust that
+local proxy target before starting Angular. Docker Nginx already forwards to `api:8080`.
+
+Form and details tests mock HTTP to check request mapping, error handling and
+refetching. They do not replace the real database checkpoint above. Date round-trip
+tests should also run in a non-UTC timezone, such as `America/Sao_Paulo`.
 
 ### Pending collection endpoint
 
