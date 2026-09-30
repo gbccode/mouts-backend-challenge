@@ -9,6 +9,7 @@ using Ambev.DeveloperEvaluation.WebApi.Middleware;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using Microsoft.AspNetCore.Mvc; // added
 
 namespace Ambev.DeveloperEvaluation.WebApi;
 
@@ -23,7 +24,28 @@ public class Program
             WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
             builder.AddDefaultLogging();
 
-            builder.Services.AddControllers();
+            // Configure controllers and normalize model-state/binding errors into our shape
+            builder.Services.AddControllers()
+                .ConfigureApiBehaviorOptions(options =>
+                {
+                    options.InvalidModelStateResponseFactory = context =>
+                    {
+                        var firstError = context.ModelState.Values
+                            .SelectMany(v => v.Errors)
+                            .Select(e => e.ErrorMessage)
+                            .FirstOrDefault() ?? "Invalid request.";
+
+                        var problem = new
+                        {
+                            type = "ValidationError",
+                            error = "Invalid sale",
+                            detail = firstError
+                        };
+
+                        return new BadRequestObjectResult(problem);
+                    };
+                });
+
             builder.Services.AddEndpointsApiExplorer();
 
             builder.AddBasicHealthChecks();
@@ -61,6 +83,7 @@ public class Program
                 db.Database.Migrate();
             }
 
+            // Single middleware to normalize validation/domain/not-found/conflict and internal errors
             app.UseMiddleware<ValidationExceptionMiddleware>();
 
             if (app.Environment.IsDevelopment())

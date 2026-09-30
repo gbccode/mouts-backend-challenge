@@ -1,6 +1,4 @@
-﻿using Ambev.DeveloperEvaluation.Common.Validation;
-using Ambev.DeveloperEvaluation.WebApi.Common;
-using FluentValidation;
+﻿using FluentValidation;
 using System.Text.Json;
 
 namespace Ambev.DeveloperEvaluation.WebApi.Middleware
@@ -20,31 +18,91 @@ namespace Ambev.DeveloperEvaluation.WebApi.Middleware
             {
                 await _next(context);
             }
-            catch (ValidationException ex)
+            catch (Exception ex)
             {
-                await HandleValidationExceptionAsync(context, ex);
+                await HandleExceptionAsync(context, ex);
             }
         }
 
-        private static Task HandleValidationExceptionAsync(HttpContext context, ValidationException exception)
+        private static Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             context.Response.ContentType = "application/json";
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-
-            var response = new ApiResponse
-            {
-                Success = false,
-                Message = "Validation Failed",
-                Errors = exception.Errors
-                    .Select(error => (ValidationErrorDetail)error)
-            };
 
             var jsonOptions = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
 
-            return context.Response.WriteAsync(JsonSerializer.Serialize(response, jsonOptions));
+            // Default 500
+            int status = StatusCodes.Status500InternalServerError;
+            var payload = new
+            {
+                type = "ServerError",
+                error = "Unexpected error",
+                detail = "An unexpected error occurred."
+            };
+
+            // FluentValidation errors -> 400 ValidationError
+            if (exception is ValidationException vf)
+            {
+                status = StatusCodes.Status400BadRequest;
+                var first = vf.Errors?.FirstOrDefault()?.ErrorMessage ?? "Invalid request.";
+                payload = new
+                {
+                    type = "ValidationError",
+                    error = "Invalid sale",
+                    detail = first
+                };
+            }
+            // Domain errors -> generally 400; special case: edit of cancelled sale -> 409
+            else if (exception is DomainException de)
+            {
+                var msg = de.Message ?? "Domain error";
+
+                // Specific mapping for "edit cancelled sale" -> 409 Conflict
+                if (msg.Contains("update a cancelled", StringComparison.OrdinalIgnoreCase)
+                    || msg.Contains("update items of a cancelled", StringComparison.OrdinalIgnoreCase)
+                    || msg.Contains("edit a cancelled", StringComparison.OrdinalIgnoreCase))
+                {
+                    status = StatusCodes.Status409Conflict;
+                    payload = new
+                    {
+                        type = "Conflict",
+                        error = "Conflict",
+                        detail = msg
+                    };
+                }
+                else
+                {
+                    status = StatusCodes.Status400BadRequest;
+                    payload = new
+                    {
+                        type = "ValidationError",
+                        error = "Invalid sale",
+                        detail = msg
+                    };
+                }
+            }
+            // Not found -> 404
+            else if (exception is KeyNotFoundException knf)
+            {
+                status = StatusCodes.Status404NotFound;
+                payload = new
+                {
+                    type = "NotFound",
+                    error = "Not found",
+                    detail = knf.Message
+                };
+            }
+            // Unauthorized from elsewhere will be handled by auth pipeline (401).
+            else
+            {
+                // Keep generic 500 payload; log is done by host logging
+            }
+
+            context.Response.StatusCode = status;
+            var json = JsonSerializer.Serialize(payload, jsonOptions);
+            return context.Response.WriteAsync(json);
         }
     }
 }
